@@ -1,7 +1,9 @@
 import nltk
 from nltk.stem.lancaster import LancasterStemmer
 import numpy as np
-import tflearn
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.models import model_from_json
 import tensorflow as tf
 import random
 import time
@@ -13,7 +15,7 @@ stemmer = LancasterStemmer()
 with open("intents.json") as file:
     data = json.load(file)
 
-#preprocessing data if not already done
+# preprocessing data if not already done
 try:
     with open("data.pickle", "rb") as f:
         words,labels,training,output=pickle.load(f)
@@ -65,23 +67,33 @@ except:
     with open("data.pickle","wb") as f:
         pickle.dump((words,labels,training,output),f)
 
-tf.reset_default_graph()
 
-#making a NN model
-net = tflearn.input_data(shape=[None, len(training[0])])
-net = tflearn.fully_connected(net,9)
-net = tflearn.fully_connected(net,9)
-net = tflearn.fully_connected(net,len(output[0]),activation="softmax")
-net = tflearn.regression(net)
-
-model = tflearn.DNN(net)
-
-#training if not trained before
+# training if not trained before
 try:
-    model.load("model.tflearn")
+    json_file = open('model.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    model = model_from_json(loaded_model_json)
+    model.load_weights("model.h5")
 except:
-    model.fit(training, output, n_epoch=2000, batch_size=8, show_metric=True)
-    model.save("model.tflearn")
+    # making a NN model
+    model = Sequential()
+    model.add(Dense(9, input_dim=len(training[0])))
+    model.add(Dense(9))
+    model.add(Dense(len(output[0]), activation="softmax"))
+    model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
+
+    model.fit(training, output, epochs=150, batch_size=8, verbose=0)
+    scores = model.evaluate(training, output, verbose=0)
+    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+
+    # model to JSON
+    model_json = model.to_json()
+    with open("model.json", "w") as json_file:
+        json_file.write(model_json)
+    # weights to HDF5
+    model.save_weights("model.h5")
+    print("Model saved.")
 
 #making a bag of words from input
 def bagOfWords(string,words):
@@ -97,15 +109,17 @@ def bagOfWords(string,words):
 
     return np.array(bag)
 
-#function for chatting
+# function for chatting
 def chat():
-    print("Start talking with the bot")
+    print("Start talking with the chatbot (type quit to stop).")
     while True:
         inp = input("You: ")
         if inp.lower() == "quit":
             break
 
-        results = model.predict([bagOfWords(inp,words)])[0]
+        bag = bagOfWords(inp,words)
+        bag=bag.reshape((1,len(training[0])))
+        results = model.predict(bag,verbose=0)[0]
         results_index = np.argmax(results)
         tag = labels[results_index]
 
@@ -121,4 +135,7 @@ def chat():
             print("Bot: But soon I will...")
 
 chat()
+
+
+
 
