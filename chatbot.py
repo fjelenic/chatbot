@@ -80,7 +80,7 @@ except:
     model.add(Dense(9, input_dim=len(training[0])))
     model.add(Dense(9))
     model.add(Dense(len(output[0]), activation="softmax"))
-    model.compile(optimizer="adam", loss="mse", metrics=['accuracy'])
+    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=['accuracy'])
 
     model.fit(training, output, epochs=150, batch_size=8, verbose=0)
     scores = model.evaluate(training, output, verbose=0)
